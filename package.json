@@ -1,5 +1,5 @@
 {
-  "name": "dbproof-e2e-prisma",
+  "name": "prisma-example",
   "private": true,
   "devDependencies": {
     "prisma": "7.10.0"
