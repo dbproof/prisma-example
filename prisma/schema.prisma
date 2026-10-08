@@ -6,5 +6,5 @@ model Invoice {
   id        Int       @id @default(autoincrement())
   createdAt DateTime  @default(now())
   amount    Int
-  dueDate   DateTime?
+  dueDate   DateTime
 }
