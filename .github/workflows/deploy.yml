@@ -1,0 +1,47 @@
+# Stands in for a production deploy. Production is a Postgres in this job:
+# main's migrations, then invoices of which every 300th has no due date.
+# DbProof captures it, as a capture step around a real deploy would.
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["prisma/migrations/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 15
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - name: Fill production
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
+            INSERT INTO \"Invoice\" (amount, \"dueDate\")
+            SELECT (g % 1000) + 1, CASE WHEN g % 300 = 0 THEN NULL ELSE now() + interval '30 days' END
+            FROM generate_series(1, 200000) g;
+            ANALYZE \"Invoice\";"
+      - uses: dbproof/capture-action@v1
+        with:
+          kind: scheduled
+          capture-token: ${{ secrets.DBPROOF_CAPTURE_TOKEN }}
+          capture-dsn: ${{ env.DATABASE_URL }}
